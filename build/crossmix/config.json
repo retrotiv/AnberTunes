@@ -1,0 +1,6 @@
+{
+	"label": "Boombrick",
+	"icon": "icon.png",
+	"launch": "launch.sh",
+	"description": "Music player"
+}

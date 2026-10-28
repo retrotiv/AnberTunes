@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="220" viewBox="0 0 760 220" role="img" aria-label="AnberTunes">
+  <defs>
+    <linearGradient id="amber" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffe08a"/><stop offset="0.5" stop-color="#ffab2e"/><stop offset="1" stop-color="#ff6a1a"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#15151b"/><stop offset="1" stop-color="#0b0b0f"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+
+  <rect x="6" y="6" width="748" height="208" rx="30" fill="url(#panel)"/>
+  <rect x="6.5" y="6.5" width="747" height="207" rx="29.5" fill="none" stroke="#ffab2e" stroke-opacity="0.22"/>
+
+  <!-- equalizer emblem (music) -->
+  <g fill="url(#amber)" filter="url(#glow)">
+    <rect x="46"  y="96"  width="17" height="74"  rx="8"/>
+    <rect x="72"  y="60"  width="17" height="110" rx="8"/>
+    <rect x="98"  y="40"  width="17" height="130" rx="8"/>
+    <rect x="124" y="74"  width="17" height="96"  rx="8"/>
+    <rect x="150" y="104" width="17" height="66"  rx="8"/>
+  </g>
+  <line x1="40" y1="172" x2="173" y2="172" stroke="#ffab2e" stroke-opacity="0.4" stroke-width="3"/>
+
+  <!-- wordmark: ANBER amber + Tunes white, matching AnberNext -->
+  <g transform="translate(196,0)">
+    <text x="6" y="134" filter="url(#glow)"
+          font-family="'Eurostile','Bank Gothic','Arial Narrow','Franklin Gothic Medium',Impact,sans-serif"
+          font-size="84" font-weight="800" fill="url(#amber)"
+          textLength="300" lengthAdjust="spacingAndGlyphs" transform="skewX(-5)">ANBER</text>
+    <text x="316" y="134"
+          font-family="'Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif"
+          font-size="84" font-weight="400" fill="#f4f4f6"
+          textLength="230" lengthAdjust="spacingAndGlyphs">Tunes</text>
+    <line x1="8" y1="156" x2="546" y2="156" stroke="#ffab2e" stroke-opacity="0.25" stroke-width="2"/>
+    <text x="8" y="182" font-family="'Segoe UI',Arial,sans-serif" font-size="15" letter-spacing="5" fill="#c89a5a">MUSIC PLAYER · RG353V</text>
+  </g>
+</svg>

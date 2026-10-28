@@ -1,0 +1,64 @@
+Boombrick
+Copyright (C) 2026 The Boombrick authors
+
+Boombrick is free software, released under the GNU General Public License
+version 3. See LICENSE.
+
+It includes or links the following third-party components:
+
+  SDL2                         zlib License          https://libsdl.org
+  go-sdl2                      BSD-3-Clause          https://github.com/veandco/go-sdl2
+  go-text typesetting, render  BSD-3-Clause/Unlicense https://github.com/go-text
+  oksvg (modified), rasterx    BSD-3-Clause          https://github.com/srwiley
+  golang.org/x/image           BSD-3-Clause          https://golang.org/x/image
+  golang.org/x/net             BSD-3-Clause          https://golang.org/x/net
+  golang.org/x/text            BSD-3-Clause          https://golang.org/x/text
+  x509roots/fallback           BSD-3-Clause          https://golang.org/x/crypto
+                               Its CA certificate list is Mozilla NSS data (certdata.txt), MPL-2.0
+  go-sqlite3                   MIT                   https://github.com/mattn/go-sqlite3
+  SQLite                       Public domain         https://sqlite.org
+  Outfit                       SIL OFL 1.1           https://github.com/Outfitio/Outfit-Fonts
+  Figtree                      SIL OFL 1.1           https://github.com/erikdkennedy/figtree
+  Noto Sans                    SIL OFL 1.1           https://github.com/notofonts/latin-greek-cyrillic
+  Lucide icons                 ISC, MIT (Feather)    https://lucide.dev
+  dr_mp3, dr_flac              Public domain/MIT-0   https://github.com/mackron/dr_libs (dfe837763100)
+  opusfile                     BSD-3-Clause          https://opus-codec.org (v0.12)
+  libopus, libogg              BSD-3-Clause          https://xiph.org
+  faad2                        GPL-2.0-or-later      https://github.com/knik0/faad2 (2.11.1)
+                               Code from FAAD2 is copyright (c) Nero AG, www.nero.com
+  speexdsp resampler           BSD-3-Clause          https://speex.org (SpeexDSP-1.2.1)
+  dhowden/tag (modified)       BSD-2-Clause          https://github.com/dhowden/tag
+  godbus/dbus                  BSD-2-Clause          https://github.com/godbus/dbus (v5.2.0)
+  rsc.io/qr                    BSD-3-Clause          https://github.com/rsc/qr (v0.2.0)
+  ALSA library (libasound)     LGPL-2.1              https://www.alsa-project.org
+  QuickJS-NG                   MIT                   https://github.com/quickjs-ng/quickjs (v0.17.0)
+  yt-dlp                       Unlicense             https://github.com/yt-dlp/yt-dlp
+                               Downloaded on first use; not shipped in the pak
+
+The Spotify helper, bin/boombrick-spotify, includes or links:
+
+  go-librespot                 GPL-3.0               https://github.com/devgianlu/go-librespot (v0.10.5)
+  protobuf-go                  BSD-3-Clause          https://github.com/protocolbuffers/protobuf-go
+  golang.org/x/crypto, exp, oauth2  BSD-3-Clause     https://golang.org/x
+  shannon                      MIT                   https://github.com/devgianlu/shannon
+  backoff                      MIT                   https://github.com/cenkalti/backoff
+  websocket                    ISC                   https://github.com/coder/websocket
+  pulse                        MIT                   https://github.com/jfreymuth/pulse
+  jfreymuth/vorbis             MIT                   https://github.com/jfreymuth/vorbis (v1.0.2)
+                               Decodes the Spotify streams
+  libFLAC                      BSD-3-Clause          https://xiph.org/flac
+  libmpg123                    LGPL-2.1              https://mpg123.de (1.33.7)
+
+It uses these services at run time:
+
+  MusicBrainz                  album search                   https://musicbrainz.org
+  Cover Art Archive            album covers                   https://coverartarchive.org
+  LRCLIB                       lyrics                         https://lrclib.net
+  YouTube Music                search, thumbnails, downloads  https://music.youtube.com
+  Spotify                      sign-in, playlists, streaming  https://spotify.com
+  GitHub releases              yt-dlp and its SHA2-256SUMS    https://github.com/yt-dlp/yt-dlp/releases
+
+The font licences (OFL-*.txt) are in assets/fonts/ in the source tree and
+next to this file in the pak. The other licences are in full in
+THIRD-PARTY.txt, next to this file in the pak, which scripts/licenses.sh makes
+from the modules built in and third_party/licenses/.
