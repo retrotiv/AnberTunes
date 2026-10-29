@@ -63,6 +63,7 @@ type State struct {
 	Track             Track // the current track; zero when nothing is queued
 	Index, Count      int   // position in play order, from 0, and queue length
 	Playing           bool
+	Paused            bool // a loaded track the user paused, not one stopped or played out
 	Waiting           bool // the current track is still downloading; it plays when it lands
 	Cued              bool // the current track is stopped on: it plays only when asked
 	Loading           bool // the current track is a stream being opened
@@ -852,6 +853,10 @@ func (p *Player) State() State {
 		return s
 	}
 	s.Playing, s.Rate, s.Err = st.Playing, st.Rate, st.Err
+	// A loaded track that isn't playing, with no output error and not cued, is
+	// one the user paused: it can be resumed, so the background player must not
+	// mistake it for the music having stopped.
+	s.Paused = !st.Playing && st.Err == nil && !p.cued
 	if st.Rate > 0 {
 		frame := max(st.Frame, p.startFrame) // the engine hasn't reached the start yet
 		s.Elapsed = duration(frame, st.Rate)

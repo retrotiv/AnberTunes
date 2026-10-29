@@ -118,6 +118,11 @@ func Run(ctx context.Context, o Options) error {
 				every = o.Every
 				tick.Reset(every)
 			}
+		case st.Paused:
+			// The user paused, with the in-game controls or the menu; the track
+			// is still loaded. Stay alive so a later press resumes it, instead of
+			// taking the silence for the music having stopped and handing back.
+			hushed, silent, stuck, skips = false, 0, 0, 0
 		default:
 			if hushed {
 				silent += every
