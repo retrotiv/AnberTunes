@@ -91,10 +91,12 @@ func watchCommands(ctx context.Context, nav *overlayNav, path string) {
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
 		switch line := strings.TrimSpace(sc.Text()); line {
-		case "view=reduced":
+		case "view=hidden":
 			overlayViewMode.Store(0)
-		case "view=expanded":
+		case "view=reduced":
 			overlayViewMode.Store(1)
+		case "view=expanded":
+			overlayViewMode.Store(2)
 		default:
 			nav.Handle(line) // toggle/next/prev and the player's buttons
 		}
