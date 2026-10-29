@@ -82,6 +82,10 @@ func watchCommands(ctx context.Context, c control, path string) {
 			c.Next()
 		case "prev":
 			c.Prev()
+		case "view=reduced":
+			overlayViewMode.Store(0)
+		case "view=expanded":
+			overlayViewMode.Store(1)
 		}
 	}
 }
