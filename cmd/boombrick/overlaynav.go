@@ -14,15 +14,6 @@ import (
 	"github.com/ujjwal313/boombrick/internal/screens"
 )
 
-// frameSig is a cheap fingerprint of what the card would draw, so an unchanged
-// frame isn't drawn again every second.
-func frameSig(now overlaycard.Now, bm overlaycard.BrowseModel, browse bool, mode overlaycard.Mode) string {
-	if browse {
-		return fmt.Sprintf("b|%d|%d|%s|%d", bm.Tab, bm.Selected, bm.Heading, len(bm.Rows))
-	}
-	return fmt.Sprintf("n|%d|%s|%t|%d", mode, now.Title, now.Playing, int(now.Elapsed/time.Second))
-}
-
 // loadOverlayLibrary loads the library index for the in-game browser, or nil if
 // it can't (then browsing just does nothing).
 func loadOverlayLibrary(db *sql.DB) *library.Index {
@@ -33,27 +24,42 @@ func loadOverlayLibrary(db *sql.DB) *library.Index {
 	return ix
 }
 
-// overlayNav drives the in-game player: it holds the library, which view is
-// showing (now-playing or the library browser) and the selection, and turns the
-// overlay's button commands into moves and playback. It builds the frame the
-// card is drawn from.
+// frameSig is a cheap fingerprint of what the card would draw, so an unchanged
+// frame isn't drawn again every tick.
+func frameSig(now overlaycard.Now, bm overlaycard.BrowseModel, browse bool, mode overlaycard.Mode) string {
+	if browse {
+		return fmt.Sprintf("b|%d|%d|%s|%d", bm.Tab, bm.Selected, bm.Heading, len(bm.Rows))
+	}
+	return fmt.Sprintf("n|%d|%s|%t|%d", mode, now.Title, now.Playing, int(now.Elapsed/time.Second))
+}
+
+// overlayNav drives the in-game player: the library, which view shows and the
+// selection, turning the overlay's button commands into moves and playback.
 type overlayNav struct {
 	mu       sync.Mutex
 	p        *player.Player
 	ix       *library.Index
 	browsing bool
-	tab      int // 0 Albums, 1 Songs
-	sel      [2]int
-	inAlbum  *library.Album
-	albumSel int
-	covers   map[string]*image.NRGBA // squared to overlaycard.BrowseThumb, cached by path
+	tab      int    // 0 Albums, 1 Artists, 2 Songs, 3 Genres
+	sel      [4]int // selection per tab
+
+	// A drilled-in album, artist or genre: its songs, ready to play.
+	inDrill     bool
+	drillTitle  string
+	drillTracks []player.Track
+	drillPaths  []string
+	drillSel    int
+
+	covers map[string]*image.NRGBA // squared to overlaycard.BrowseThumb, by path
 }
+
+const browseTabs = 4
+
+var tabNames = []string{"Álbuns", "Artistas", "Músicas", "Gêneros"}
 
 func newOverlayNav(p *player.Player, ix *library.Index) *overlayNav {
 	return &overlayNav{p: p, ix: ix, covers: map[string]*image.NRGBA{}}
 }
-
-const browseTabs = 2 // Albums, Songs
 
 // Handle turns one command from the overlay into a move or playback.
 func (n *overlayNav) Handle(cmd string) {
@@ -74,17 +80,17 @@ func (n *overlayNav) Handle(cmd string) {
 		}
 		return
 	}
-	if n.inAlbum != nil { // inside an album: its tracks
+	if n.inDrill { // inside an album/artist/genre: its songs
 		switch cmd {
 		case "up":
-			n.albumSel = clamp(n.albumSel-1, 0, len(n.inAlbum.Tracks)-1)
+			n.drillSel = clamp(n.drillSel-1, 0, len(n.drillTracks)-1)
 		case "down":
-			n.albumSel = clamp(n.albumSel+1, 0, len(n.inAlbum.Tracks)-1)
+			n.drillSel = clamp(n.drillSel+1, 0, len(n.drillTracks)-1)
 		case "a":
-			n.p.Play(screens.Tracks(n.inAlbum.Tracks), n.albumSel)
-			n.browsing, n.inAlbum = false, nil
+			n.p.Play(n.drillTracks, n.drillSel)
+			n.browsing, n.inDrill = false, false
 		case "b":
-			n.inAlbum = nil
+			n.inDrill = false
 		}
 		return
 	}
@@ -105,29 +111,48 @@ func (n *overlayNav) Handle(cmd string) {
 }
 
 func (n *overlayNav) listLen() int {
-	if n.tab == 0 {
+	switch n.tab {
+	case 0:
 		return len(n.ix.Albums)
+	case 1:
+		return len(n.ix.Artists)
+	case 2:
+		return len(n.ix.Songs)
+	default:
+		return len(n.ix.Genres)
 	}
-	return len(n.ix.Songs)
 }
 
-// open enters the selected album, or plays the selected song.
+// open enters the selected album/artist/genre, or plays the selected song.
 func (n *overlayNav) open() {
 	i := n.sel[n.tab]
-	if n.tab == 0 {
+	switch n.tab {
+	case 0:
 		if i >= 0 && i < len(n.ix.Albums) {
-			n.inAlbum, n.albumSel = n.ix.Albums[i], 0
+			a := n.ix.Albums[i]
+			n.enter(a.Title, screens.Tracks(a.Tracks), libPaths(a.Tracks))
 		}
-		return
-	}
-	if i >= 0 && i < len(n.ix.Songs) {
-		tracks := make([]player.Track, len(n.ix.Songs))
-		for j, s := range n.ix.Songs {
-			tracks[j] = screens.TrackOf(s)
+	case 1:
+		if i >= 0 && i < len(n.ix.Artists) {
+			a := n.ix.Artists[i]
+			tracks, paths := artistSongs(a)
+			n.enter(a.Name, tracks, paths)
 		}
-		n.p.Play(tracks, i)
-		n.browsing = false
+	case 2:
+		if i >= 0 && i < len(n.ix.Songs) {
+			n.p.Play(ptrSongs(n.ix.Songs), i)
+			n.browsing = false
+		}
+	case 3:
+		if i >= 0 && i < len(n.ix.Genres) {
+			g := n.ix.Genres[i]
+			n.enter(g.Name, ptrSongs(g.Songs), ptrPaths(g.Songs))
+		}
 	}
+}
+
+func (n *overlayNav) enter(title string, tracks []player.Track, paths []string) {
+	n.inDrill, n.drillTitle, n.drillTracks, n.drillPaths, n.drillSel = true, title, tracks, paths, 0
 }
 
 // Frame builds what the card draws now: the browser when browsing in the
@@ -152,43 +177,54 @@ func (n *overlayNav) Frame() (overlaycard.Now, overlaycard.BrowseModel, bool, ov
 	return now, n.browseModel(), true, mode
 }
 
-// browseModel is the list to draw: the album's tracks, or the albums or songs,
-// with covers loaded for the rows on screen.
 func (n *overlayNav) browseModel() overlaycard.BrowseModel {
-	if n.inAlbum != nil {
-		rows := make([]overlaycard.BrowseRow, len(n.inAlbum.Tracks))
-		for i, t := range n.inAlbum.Tracks {
+	if n.inDrill {
+		rows := make([]overlaycard.BrowseRow, len(n.drillTracks))
+		for i, t := range n.drillTracks {
 			rows[i] = overlaycard.BrowseRow{Title: t.Title, Subtitle: t.Artist}
 		}
-		n.loadCovers(rows, n.albumSel, func(i int) string { return n.inAlbum.Tracks[i].Path })
-		return overlaycard.BrowseModel{Heading: n.inAlbum.Title, Tabs: nil, Rows: rows, Selected: n.albumSel}
+		n.loadCovers(rows, n.drillSel, func(i int) string { return n.drillPaths[i] })
+		return overlaycard.BrowseModel{Heading: n.drillTitle, Rows: rows, Selected: n.drillSel}
 	}
 	var rows []overlaycard.BrowseRow
 	var path func(i int) string
-	if n.tab == 0 {
+	switch n.tab {
+	case 0:
 		rows = make([]overlaycard.BrowseRow, len(n.ix.Albums))
 		for i, a := range n.ix.Albums {
 			rows[i] = overlaycard.BrowseRow{Title: a.Title, Subtitle: a.Artist}
 		}
-		path = func(i int) string {
-			if len(n.ix.Albums[i].Tracks) > 0 {
-				return n.ix.Albums[i].Tracks[0].Path
-			}
-			return ""
+		path = func(i int) string { return firstPath(n.ix.Albums[i].Tracks) }
+	case 1:
+		rows = make([]overlaycard.BrowseRow, len(n.ix.Artists))
+		for i, a := range n.ix.Artists {
+			rows[i] = overlaycard.BrowseRow{Title: a.Name, Subtitle: songsLabel(a.Songs)}
 		}
-	} else {
+		path = func(i int) string { return artistFirstPath(n.ix.Artists[i]) }
+	case 2:
 		rows = make([]overlaycard.BrowseRow, len(n.ix.Songs))
 		for i, s := range n.ix.Songs {
 			rows[i] = overlaycard.BrowseRow{Title: s.Title, Subtitle: s.Artist}
 		}
 		path = func(i int) string { return n.ix.Songs[i].Path }
+	default:
+		rows = make([]overlaycard.BrowseRow, len(n.ix.Genres))
+		for i, g := range n.ix.Genres {
+			rows[i] = overlaycard.BrowseRow{Title: g.Name, Subtitle: songsLabel(len(g.Songs))}
+		}
+		path = func(i int) string {
+			if len(n.ix.Genres[i].Songs) > 0 {
+				return n.ix.Genres[i].Songs[0].Path
+			}
+			return ""
+		}
 	}
 	n.loadCovers(rows, n.sel[n.tab], path)
-	return overlaycard.BrowseModel{Heading: "Biblioteca", Tabs: []string{"Álbuns", "Músicas"}, Tab: n.tab, Rows: rows, Selected: n.sel[n.tab]}
+	return overlaycard.BrowseModel{Heading: "Biblioteca", Tabs: tabNames, Tab: n.tab, Rows: rows, Selected: n.sel[n.tab]}
 }
 
 // loadCovers reads covers only for the rows around sel (the ones on screen),
-// cached by path, so a long list stays cheap.
+// squared and cached by path, so a long list stays cheap.
 func (n *overlayNav) loadCovers(rows []overlaycard.BrowseRow, sel int, path func(i int) string) {
 	for i := sel - 3; i <= sel+3; i++ {
 		if i < 0 || i >= len(rows) {
@@ -209,6 +245,65 @@ func (n *overlayNav) loadCovers(rows []overlaycard.BrowseRow, sel int, path func
 		}
 		rows[i].Cover = img
 	}
+}
+
+// ---- helpers ----------------------------------------------------------------
+
+func artistSongs(a *library.Artist) ([]player.Track, []string) {
+	var tracks []player.Track
+	var paths []string
+	for _, al := range a.Albums {
+		for i := range al.Tracks {
+			tracks = append(tracks, screens.TrackOf(&al.Tracks[i]))
+			paths = append(paths, al.Tracks[i].Path)
+		}
+	}
+	return tracks, paths
+}
+
+func ptrSongs(songs []*library.Track) []player.Track {
+	out := make([]player.Track, len(songs))
+	for i, s := range songs {
+		out[i] = screens.TrackOf(s)
+	}
+	return out
+}
+
+func libPaths(ts []library.Track) []string {
+	out := make([]string, len(ts))
+	for i := range ts {
+		out[i] = ts[i].Path
+	}
+	return out
+}
+
+func ptrPaths(songs []*library.Track) []string {
+	out := make([]string, len(songs))
+	for i, s := range songs {
+		out[i] = s.Path
+	}
+	return out
+}
+
+func firstPath(ts []library.Track) string {
+	if len(ts) > 0 {
+		return ts[0].Path
+	}
+	return ""
+}
+
+func artistFirstPath(a *library.Artist) string {
+	if len(a.Albums) > 0 {
+		return firstPath(a.Albums[0].Tracks)
+	}
+	return ""
+}
+
+func songsLabel(n int) string {
+	if n == 1 {
+		return "1 música"
+	}
+	return fmt.Sprintf("%d músicas", n)
 }
 
 func clamp(v, lo, hi int) int {
