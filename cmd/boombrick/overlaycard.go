@@ -17,10 +17,10 @@ import (
 // image the overlay just textures on screen. Pure Go, no screen needed.
 
 const (
-	cardW   = 460
-	cardH   = 76
-	cardPad = 14
-	cardR   = 14 // corner radius
+	cardW   = 480
+	cardH   = 96
+	cardPad = 16
+	cardR   = 18 // corner radius
 )
 
 type overlayCard struct {
@@ -66,13 +66,14 @@ func (c *overlayCard) render(s player.State) *image.NRGBA {
 	if title == "" {
 		title = "—"
 	}
-	c.drawText(img, text.Style{Face: text.FigtreeSemiBold, Size: 23}, title, textX, cardPad+2, theme.Paper, textW)
+	c.drawText(img, text.Style{Face: text.FigtreeSemiBold, Size: 24}, title, textX, cardPad+2, theme.Paper, textW)
 	if s.Track.Artist != "" {
-		c.drawText(img, text.Style{Face: text.Figtree, Size: 17}, s.Track.Artist, textX, cardPad+30, theme.Ink3, textW)
+		c.drawText(img, text.Style{Face: text.Figtree, Size: 17}, s.Track.Artist, textX, cardPad+36, theme.Ink3, textW)
 	}
 
-	// Progress: a track and an amber fill along the bottom inside the card.
-	py0, py1 := cardH-cardPad-4, cardH-cardPad
+	// Progress: a thin track with an amber fill along the bottom of the card.
+	py1 := cardH - cardPad
+	py0 := py1 - 5
 	fillRoundRect(img, image.Rect(textX, py0, cardW-cardPad, py1), 2, theme.PaperA(0.18))
 	frac := 0.0
 	if d := s.Duration.Seconds(); d > 0 {
