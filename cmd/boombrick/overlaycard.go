@@ -42,10 +42,9 @@ func (c *overlayCard) render(now overlaycard.Now, bm overlaycard.BrowseModel, br
 		c.write(c.r.RenderBrowse(bm), 2) // 2 = expanded library
 		return
 	}
-	if !now.Queued {
-		os.Remove(c.path)
-		return
-	}
+	// Even with nothing playing, the resident shows now-playing (a dash and the
+	// hint to open the library), so the player is never a blank screen while it
+	// is on. It is cleared only when the overlay is hidden (see publishNowPlaying).
 	hdr := 0 // reduced
 	if mode == overlaycard.Expanded {
 		hdr = 1 // expanded now-playing

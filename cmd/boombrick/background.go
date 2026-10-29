@@ -21,6 +21,10 @@ import (
 	"github.com/ujjwal313/boombrick/internal/store"
 )
 
+// backgroundResident is set from the -resident flag: the background player then
+// opens idle and stays alive for the in-game player.
+var backgroundResident bool
+
 // runBackground is Boombrick's background player: the saved queue, played
 // with no screen until Boombrick takes the music back or it stops by itself.
 // It has no art, lyrics, downloads or scans; songs that wait for a download
@@ -79,12 +83,15 @@ func runBackground() error {
 	if err != nil {
 		return err
 	}
-	if !ok {
+	// A resident stays even with nothing to play: the in-game player opens it so
+	// the library can set a queue. Only a plain background player ends here.
+	if ok {
+		if !p.Restore(snap) && !backgroundResident {
+			log.Info("the saved queue can't be played")
+			return nil
+		}
+	} else if !backgroundResident {
 		log.Info("nothing queued to play")
-		return nil
-	}
-	if !p.Restore(snap) {
-		log.Info("the saved queue can't be played")
 		return nil
 	}
 	h, err := resume.LoadHandover(db.DB)
@@ -110,8 +117,9 @@ func runBackground() error {
 		Log:        log,
 		Every:      time.Second,
 		SaveEvery:  5 * time.Second,
-		StallLimit: 2 * time.Minute,
-		SoundUsers: func() []string { return platform.SoundUsers("/proc") },
+		StallLimit:   2 * time.Minute,
+		SoundUsers:   func() []string { return platform.SoundUsers("/proc") },
+		StayResident: backgroundResident,
 	})
 	log.Info("background play ended", "err", err)
 	return err

@@ -53,7 +53,9 @@ func main() {
 	showVersion := flag.Bool("version", false, "print the version and exit")
 	inBackground := flag.Bool("background", false, "play the saved queue with no screen until stopped, as Play in background starts it")
 	inSummon := flag.Bool("summon", false, "the always-on music resident: wait for the music hotkey and start the background player, so music starts from anywhere without opening the app first")
+	resident := flag.Bool("resident", false, "with -background, open idle and stay alive for the in-game player, instead of ending when the music stops")
 	flag.Parse()
+	backgroundResident = *resident
 	if *showVersion {
 		fmt.Println(version.String())
 		return

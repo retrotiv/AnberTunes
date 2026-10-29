@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/binary"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -34,10 +36,10 @@ func runSummon() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
-	// watchHotkeys turns L1+R1+A into Toggle; here Toggle means "summon". Next
-	// and Prev do nothing with no music to control.
+	// The in-game player's open combos (L1+R1+X and L1+R1+Y) also start the
+	// resident player, so the player opens with nothing playing.
 	press := make(chan struct{}, 1)
-	go watchHotkeys(ctx, summoner{press})
+	go watchOpenCombo(ctx, press)
 
 	var last time.Time
 	for {
@@ -49,31 +51,70 @@ func runSummon() error {
 				continue // one start at a time: ignore a key held or pressed again at once
 			}
 			if _, held, _ := background.Holder(lock); held {
-				continue // a background player already owns the queue and the hotkeys
+				continue // a player already owns the queue
 			}
 			if uiRunning(self) {
 				continue // AnberTunes is open; it owns the music
 			}
 			last = time.Now()
-			// Detached; it plays the saved queue and takes the hotkeys over. No
-			// saved queue, or nothing it can play, just means nothing starts.
-			background.Start(self, []string{"--background"}, os.Environ(), 10*time.Second)
+			// Detached, resident: it opens idle and stays for the in-game player.
+			background.Start(self, []string{"--background", "--resident"}, os.Environ(), 10*time.Second)
 		}
 	}
 }
 
-// summoner is a control whose Toggle signals a summon, for watchHotkeys to
-// drive. The signal is dropped when one is already pending.
-type summoner struct{ ch chan struct{} }
-
-func (s summoner) Toggle() {
-	select {
-	case s.ch <- struct{}{}:
-	default:
+// watchOpenCombo signals press when the in-game player's open combo is pressed:
+// L1+R1 held, then X or Y. It reads the pads straight from evdev, shared.
+func watchOpenCombo(ctx context.Context, press chan struct{}) {
+	const (
+		keyX = 307
+		keyY = 308
+		keyL = 310
+		keyR = 311
+	)
+	paths, _ := filepath.Glob("/dev/input/event*")
+	var l1, r1 bool
+	var mu sync.Mutex
+	for _, p := range paths {
+		f, err := os.Open(p)
+		if err != nil {
+			continue
+		}
+		go func(f *os.File) {
+			defer f.Close()
+			go func() { <-ctx.Done(); f.Close() }()
+			buf := make([]byte, 24*64)
+			for {
+				n, err := f.Read(buf)
+				if err != nil {
+					return
+				}
+				for i := 0; i+24 <= n; i += 24 {
+					if binary.LittleEndian.Uint16(buf[i+16:]) != 1 { // EV_KEY
+						continue
+					}
+					code := binary.LittleEndian.Uint16(buf[i+18:])
+					val := int32(binary.LittleEndian.Uint32(buf[i+20:]))
+					mu.Lock()
+					switch code {
+					case keyL:
+						l1 = val != 0
+					case keyR:
+						r1 = val != 0
+					case keyX, keyY:
+						if l1 && r1 && val == 1 {
+							select {
+							case press <- struct{}{}:
+							default:
+							}
+						}
+					}
+					mu.Unlock()
+				}
+			}
+		}(f)
 	}
 }
-func (s summoner) Next() {}
-func (s summoner) Prev() {}
 
 // uiRunning reports whether the full AnberTunes screen is open: a process
 // running the same binary with neither --background nor --summon. The resident

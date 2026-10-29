@@ -58,6 +58,12 @@ type Options struct {
 	// SoundUsers lists the programs that have the sound card open, for the
 	// log when it fails; nil lists none.
 	SoundUsers func() []string
+	// StayResident keeps the player alive when the music stops, instead of
+	// handing back and ending: the in-game player opens it with nothing playing,
+	// and it waits, idle, for the queue to be set from the library. It still
+	// ends on ctx (Boombrick taking the music back). A resident doesn't start
+	// playing on its own.
+	StayResident bool
 }
 
 // Run plays the queue its player has restored until ctx ends, as Boombrick
@@ -72,7 +78,9 @@ type Options struct {
 // has played: a player that stops first leaves it to Boombrick.
 func Run(ctx context.Context, o Options) error {
 	p := o.Player
-	p.Toggle()
+	if !o.StayResident {
+		p.Toggle() // a resident opens idle; it plays only once the library sets a queue
+	}
 	every := min(o.Every, readyEvery)
 	tick := time.NewTicker(every)
 	defer tick.Stop()
@@ -93,6 +101,9 @@ func Run(ctx context.Context, o Options) error {
 		st := p.State()
 		switch {
 		case st.Waiting && !st.Cued:
+			if o.StayResident {
+				break // idle: wait, don't hand back
+			}
 			if st.Index+1 >= st.Count && st.Repeat != player.RepeatAll {
 				return o.stopped(ready) // the last song, and Next does nothing there
 			}
@@ -105,6 +116,9 @@ func Run(ctx context.Context, o Options) error {
 		case st.Playing && (st.Stalled || st.Loading):
 			hushed, silent, skips = false, 0, 0
 			if stuck += every; o.StallLimit > 0 && stuck >= o.StallLimit {
+				if o.StayResident {
+					break
+				}
 				return o.stopped(ready)
 			}
 		case st.Playing && !st.Waiting:
@@ -130,6 +144,16 @@ func Run(ctx context.Context, o Options) error {
 			if hushed = true; silent >= quiet {
 				if st.Err != nil {
 					o.soundFailed(st.Err)
+				}
+				if o.StayResident {
+					// Idle, but stay for the in-game player: save the place, let
+					// the device sleep, and wait for the library to set a queue.
+					o.save()
+					if o.StayAwake != "" {
+						os.Remove(o.StayAwake)
+					}
+					hushed, silent = false, 0
+					break
 				}
 				return o.stopped(ready)
 			}
