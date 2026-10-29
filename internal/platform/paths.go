@@ -118,6 +118,12 @@ func tmpDir() string { return envOr("BOOMBRICK_TMP", "/tmp") }
 // PlayerLock is the lock the background player holds while it owns the queue.
 func (p Profile) PlayerLock() string { return filepath.Join(p.tmp, "boombrick-player.lock") }
 
+// NowPlaying is where the background player publishes what it is playing, for
+// an outside menu (the in-game music menu) to read. CommandPipe is the FIFO the
+// same menu writes toggle/next/prev to. Both live in tmp, so they are per-boot.
+func (p Profile) NowPlaying() string   { return filepath.Join(p.tmp, "anbertunes-now") }
+func (p Profile) CommandPipe() string  { return filepath.Join(p.tmp, "anbertunes-cmd") }
+
 // StayAwake is the file that keeps the device awake while it exists: on
 // CrossMix its keep-awake file, and on Knulli a pause file for its battery
 // saver, which otherwise mutes the sound after a few minutes without a

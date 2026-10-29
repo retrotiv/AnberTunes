@@ -93,7 +93,9 @@ func runBackground() error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
-	go watchHotkeys(ctx, p) // L1+R1 + A/Y/B controls the music while a game is running
+	go watchHotkeys(ctx, p)                         // L1+R1 + A/Y/B controls the music while a game is running
+	go watchCommands(ctx, p, prof.CommandPipe())    // the in-game menu's toggle/next/prev come in here
+	go publishNowPlaying(ctx, p, prof.NowPlaying()) // and it reads what's playing from here
 	saver := resume.NewSaver(db.DB)
 	err = background.Run(ctx, background.Options{
 		Player:     p,
