@@ -20,10 +20,10 @@ import (
 // textures on screen. Pure Go, no screen needed.
 
 const (
-	cardW   = 560
-	cardH   = 150
-	cardPad = 18
-	cardR   = 20
+	cardW   = 620
+	cardH   = 200
+	cardPad = 20
+	cardR   = 24
 	coverPx = cardH - 2*cardPad // square cover on the left
 )
 
@@ -96,21 +96,21 @@ func (c *overlayCard) render(s player.State) *image.NRGBA {
 		fillRoundRect(img, image.Rect(cov.Min.X+coverPx/2-3, cardPad+coverPx/2-10, cov.Min.X+coverPx/2+3, cardPad+coverPx/2+10), 2, theme.Gold)
 	}
 
-	textX := cardPad + coverPx + 18
+	textX := cardPad + coverPx + 24
 	textW := cardW - textX - cardPad
 
 	title := s.Track.Title
 	if title == "" {
 		title = "—"
 	}
-	c.drawText(img, text.Style{Face: text.FigtreeSemiBold, Size: 26}, title, textX, cardPad+2, theme.Paper, textW)
+	c.drawText(img, text.Style{Face: text.FigtreeSemiBold, Size: 32}, title, textX, cardPad+4, theme.Paper, textW)
 	if s.Track.Artist != "" {
-		c.drawText(img, text.Style{Face: text.Figtree, Size: 18}, s.Track.Artist, textX, cardPad+40, theme.Ink3, textW)
+		c.drawText(img, text.Style{Face: text.Figtree, Size: 22}, s.Track.Artist, textX, cardPad+50, theme.Ink3, textW)
 	}
 
 	// Progress track and amber fill.
-	py1 := cardPad + 74
-	py0 := py1 - 5
+	py1 := cardPad + 90
+	py0 := py1 - 6
 	fillRoundRect(img, image.Rect(textX, py0, cardW-cardPad, py1), 2, theme.PaperA(0.18))
 	frac := 0.0
 	if d := s.Duration.Seconds(); d > 0 {
@@ -128,13 +128,13 @@ func (c *overlayCard) render(s player.State) *image.NRGBA {
 
 	// Transport buttons, like a real player: previous, play/pause, next, each
 	// tagged with the gamepad button that works it (B, A, Y).
-	const d, gap = 34, 26
+	const d, gap = 44, 30
 	rowW := 3*d + 2*gap
 	bx := textX + (textW-rowW)/2
 	if bx < textX {
 		bx = textX
 	}
-	by := cardPad + 80
+	by := cardPad + 98
 	c.drawBtn(img, bx, by, d, "prev", "B", false)
 	c.drawBtn(img, bx+d+gap, by, d, "play", "A", s.Playing)
 	c.drawBtn(img, bx+2*(d+gap), by, d, "next", "Y", false)
@@ -171,9 +171,9 @@ func (c *overlayCard) drawBtn(dst *image.NRGBA, x, y, d int, kind, letter string
 		fillTri(dst, cx-t, cy-t, cx-t, cy+t, cx+t-1, cy, icon)
 		fillRoundRect(dst, image.Rect(cx+t, cy-t, cx+t+bw, cy+t), 1, icon)
 	}
-	ls := text.Style{Face: text.Figtree, Size: 13}
+	ls := text.Style{Face: text.Figtree, Size: 15}
 	lw := c.textWidth(ls, letter)
-	c.drawText(dst, ls, letter, cx-lw/2, y+d+2, theme.Ink4, cardW)
+	c.drawText(dst, ls, letter, cx-lw/2, y+d+3, theme.Ink4, cardW)
 }
 
 // fillTri fills the triangle (x0,y0)(x1,y1)(x2,y2) with col.
