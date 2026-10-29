@@ -52,7 +52,7 @@ func main() {
 	}
 	rows := make([]overlaycard.BrowseRow, len(albums))
 	for i, a := range albums {
-		rows[i] = overlaycard.BrowseRow{Title: a.t, Subtitle: a.s, Cover: tintCover(160, i)}
+		rows[i] = overlaycard.BrowseRow{Title: a.t, Subtitle: a.s, Cover: tintCover(overlaycard.BrowseThumb, i)}
 	}
 	save(out+"/overlay-browse.png", rb.RenderBrowse(overlaycard.BrowseModel{
 		Heading:  "Biblioteca",

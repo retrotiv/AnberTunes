@@ -2,8 +2,10 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"image"
 	"sync"
+	"time"
 
 	"github.com/ujjwal313/boombrick/internal/art"
 	"github.com/ujjwal313/boombrick/internal/library"
@@ -11,6 +13,15 @@ import (
 	"github.com/ujjwal313/boombrick/internal/player"
 	"github.com/ujjwal313/boombrick/internal/screens"
 )
+
+// frameSig is a cheap fingerprint of what the card would draw, so an unchanged
+// frame isn't drawn again every second.
+func frameSig(now overlaycard.Now, bm overlaycard.BrowseModel, browse bool, mode overlaycard.Mode) string {
+	if browse {
+		return fmt.Sprintf("b|%d|%d|%s|%d", bm.Tab, bm.Selected, bm.Heading, len(bm.Rows))
+	}
+	return fmt.Sprintf("n|%d|%s|%t|%d", mode, now.Title, now.Playing, int(now.Elapsed/time.Second))
+}
 
 // loadOverlayLibrary loads the library index for the in-game browser, or nil if
 // it can't (then browsing just does nothing).
@@ -35,11 +46,11 @@ type overlayNav struct {
 	sel      [2]int
 	inAlbum  *library.Album
 	albumSel int
-	covers   map[string]image.Image
+	covers   map[string]*image.NRGBA // squared to overlaycard.BrowseThumb, cached by path
 }
 
 func newOverlayNav(p *player.Player, ix *library.Index) *overlayNav {
-	return &overlayNav{p: p, ix: ix, covers: map[string]image.Image{}}
+	return &overlayNav{p: p, ix: ix, covers: map[string]*image.NRGBA{}}
 }
 
 const browseTabs = 2 // Albums, Songs
@@ -125,7 +136,7 @@ func (n *overlayNav) Frame() (overlaycard.Now, overlaycard.BrowseModel, bool, ov
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	mode := overlaycard.Reduced
-	if overlayViewMode.Load() == 1 {
+	if overlayViewMode.Load() == 2 { // 0 hidden, 1 reduced, 2 expanded
 		mode = overlaycard.Expanded
 	}
 	s := n.p.State()
@@ -191,7 +202,7 @@ func (n *overlayNav) loadCovers(rows []overlaycard.BrowseRow, sel int, path func
 		if !ok {
 			if data, has := art.Embedded(p); has {
 				if im, err := art.Decode(data); err == nil {
-					img = im
+					img = art.Square(im, overlaycard.BrowseThumb)
 				}
 			}
 			n.covers[p] = img // nil cached too, so it is tried once

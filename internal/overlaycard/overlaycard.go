@@ -219,7 +219,7 @@ func (r *Renderer) expanded(n Now) *image.NRGBA {
 	r.drawControls(img, n, x, y, w, ac)
 
 	// Hint bar: how to work the player, including the way to the library.
-	r.drawHints(img, []hint{{"A", "Tocar/Pausar"}, {"Y", "Biblioteca"}, {"B", "Fechar"}, {"L1/R1", "Faixa"}})
+	r.drawHints(img, []hint{{"A", "Tocar/Pausar"}, {"Y", "Biblioteca"}, {"B", "Recolher"}})
 	return img
 }
 
@@ -277,11 +277,14 @@ func formatLine(n Now) string {
 
 // ---- the browse view: pick what to play from the library --------------------
 
-// BrowseRow is one line: a cover, a title and a subtitle (the artist, or a
-// track count).
+// BrowseThumb is the size a browse row's cover must already be squared to.
+const BrowseThumb = 58
+
+// BrowseRow is one line: a cover (already squared to BrowseThumb, or nil), a
+// title and a subtitle (the artist, or a track count).
 type BrowseRow struct {
 	Title, Subtitle string
-	Cover           image.Image
+	Cover           *image.NRGBA
 }
 
 // BrowseModel is the library list to draw: a heading, the filter tabs, and the
@@ -295,10 +298,10 @@ type BrowseModel struct {
 }
 
 const (
-	browseTop  = 150
-	browseRowH = 78
-	browseRows = 5
-	browseThumb = 58
+	browseTop   = 150
+	browseRowH  = 78
+	browseRows  = 5
+	browseThumb = BrowseThumb
 )
 
 // RenderBrowse draws the library browser: a heading, tabs, and a scrolling list
@@ -343,7 +346,7 @@ func (r *Renderer) RenderBrowse(m BrowseModel) *image.NRGBA {
 			fillRoundRect(img, image.Rect(expSide-10, ry-6, expW-expSide+10, ry+browseThumb+6), 14, goldTint)
 		}
 		if row.Cover != nil {
-			compositeImage(img, art.Square(row.Cover, browseThumb), image.Pt(expSide, ry), 8)
+			compositeImage(img, row.Cover, image.Pt(expSide, ry), 8)
 		} else {
 			fillRoundRect(img, image.Rect(expSide, ry, expSide+browseThumb, ry+browseThumb), 8, theme.LiftedRow)
 			r.drawIcon(img, "music", 28, 0, true, expSide+browseThumb/2-14, ry+browseThumb/2-14, theme.Ink4)

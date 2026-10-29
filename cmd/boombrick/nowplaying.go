@@ -20,6 +20,7 @@ import (
 func publishNowPlaying(ctx context.Context, p *player.Player, nav *overlayNav, card *overlayCard, path string) {
 	t := time.NewTicker(time.Second)
 	defer t.Stop()
+	lastSig := ""
 	write := func() {
 		s := p.State()
 		play := 0
@@ -37,8 +38,20 @@ func publishNowPlaying(ctx context.Context, p *player.Player, nav *overlayNav, c
 		if err := os.WriteFile(tmp, []byte(body), 0o644); err == nil {
 			os.Rename(tmp, path)
 		}
-		// the AnberTunes-styled card for the heavy-emulator overlay
-		card.render(nav.Frame())
+		// The overlay card is drawn only while the overlay is on screen, and
+		// only when something it shows has changed, to spare the device.
+		if overlayViewMode.Load() == 0 { // hidden
+			card.clear()
+			lastSig = ""
+			return
+		}
+		now, bm, browse, mode := nav.Frame()
+		sig := frameSig(now, bm, browse, mode)
+		if sig == lastSig {
+			return
+		}
+		lastSig = sig
+		card.render(now, bm, browse, mode)
 	}
 	write()
 	for {

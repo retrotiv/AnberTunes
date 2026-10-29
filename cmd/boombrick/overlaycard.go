@@ -39,28 +39,35 @@ func (c *overlayCard) render(now overlaycard.Now, bm overlaycard.BrowseModel, br
 		return
 	}
 	if browse {
-		c.write(c.r.RenderBrowse(bm), overlaycard.Expanded)
+		c.write(c.r.RenderBrowse(bm), 2) // 2 = expanded library
 		return
 	}
 	if !now.Queued {
 		os.Remove(c.path)
 		return
 	}
-	c.write(c.r.Render(now, mode), mode)
+	hdr := 0 // reduced
+	if mode == overlaycard.Expanded {
+		hdr = 1 // expanded now-playing
+	}
+	c.write(c.r.Render(now, mode), hdr)
 }
+
+// clear removes the card so the overlay shows nothing.
+func (c *overlayCard) clear() { os.Remove(c.path) }
 
 // write saves the card as the overlay's format: "ATN2", width, height and mode
 // as little-endian int32, then tight straight-alpha RGBA rows; whole then
 // renamed. The mode lets the overlay place a reduced card low and an expanded
 // one over the whole screen.
-func (c *overlayCard) write(img *image.NRGBA, m overlaycard.Mode) {
+func (c *overlayCard) write(img *image.NRGBA, mode int) {
 	b := img.Bounds()
 	w, h := b.Dx(), b.Dy()
 	buf := make([]byte, 16, 16+w*h*4)
 	copy(buf, "ATN2")
 	binary.LittleEndian.PutUint32(buf[4:], uint32(w))
 	binary.LittleEndian.PutUint32(buf[8:], uint32(h))
-	binary.LittleEndian.PutUint32(buf[12:], uint32(m))
+	binary.LittleEndian.PutUint32(buf[12:], uint32(mode))
 	for y := 0; y < h; y++ {
 		o := img.PixOffset(b.Min.X, b.Min.Y+y)
 		buf = append(buf, img.Pix[o:o+4*w]...)
