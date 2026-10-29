@@ -52,6 +52,7 @@ func main() {
 	started := time.Now()
 	showVersion := flag.Bool("version", false, "print the version and exit")
 	inBackground := flag.Bool("background", false, "play the saved queue with no screen until stopped, as Play in background starts it")
+	inSummon := flag.Bool("summon", false, "the always-on music resident: wait for the music hotkey and start the background player, so music starts from anywhere without opening the app first")
 	flag.Parse()
 	if *showVersion {
 		fmt.Println(version.String())
@@ -60,6 +61,9 @@ func main() {
 	mode := func() error { return run(started) }
 	if *inBackground {
 		mode = runBackground
+	}
+	if *inSummon {
+		mode = runSummon
 	}
 	if err := mode(); err != nil {
 		fmt.Fprintln(os.Stderr, "boombrick:", err)
