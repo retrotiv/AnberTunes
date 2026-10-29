@@ -93,9 +93,11 @@ func runBackground() error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
-	go watchHotkeys(ctx, p)                         // L1+R1 + A/Y/B controls the music while a game is running
-	go watchCommands(ctx, p, prof.CommandPipe())    // the in-game menu's toggle/next/prev come in here
-	go publishNowPlaying(ctx, p, prof.NowPlaying(), prof.NowPlayingCard()) // and it reads what's playing from here
+	nav := newOverlayNav(p, loadOverlayLibrary(db.DB)) // the in-game player: now-playing and the library browser
+	card := newOverlayCard(prof.NowPlayingCard())
+	go watchHotkeys(ctx, p)                             // L1+R1 + A/Y/B controls the music while a game is running
+	go watchCommands(ctx, nav, prof.CommandPipe())      // the overlay's buttons come in here
+	go publishNowPlaying(ctx, p, nav, card, prof.NowPlaying())
 	saver := resume.NewSaver(db.DB)
 	err = background.Run(ctx, background.Options{
 		Player:     p,

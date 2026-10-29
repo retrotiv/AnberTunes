@@ -7,7 +7,6 @@ import (
 	"sync/atomic"
 
 	"github.com/ujjwal313/boombrick/internal/overlaycard"
-	"github.com/ujjwal313/boombrick/internal/player"
 )
 
 // overlayViewMode is the view the in-game overlay asks for: 0 reduced,
@@ -32,32 +31,22 @@ func newOverlayCard(path string) *overlayCard {
 	return &overlayCard{r: r, path: path, ok: true}
 }
 
-func (c *overlayCard) update(s player.State) {
+// render draws the frame the navigator built: the library browser (always
+// expanded), or now-playing in the reduced or expanded view. With nothing
+// playing and not browsing, it removes the file so the overlay shows nothing.
+func (c *overlayCard) render(now overlaycard.Now, bm overlaycard.BrowseModel, browse bool, mode overlaycard.Mode) {
 	if !c.ok {
 		return
 	}
-	if !s.Queued {
+	if browse {
+		c.write(c.r.RenderBrowse(bm), overlaycard.Expanded)
+		return
+	}
+	if !now.Queued {
 		os.Remove(c.path)
 		return
 	}
-	m := overlaycard.Reduced
-	if overlayViewMode.Load() == 1 {
-		m = overlaycard.Expanded
-	}
-	n := overlaycard.Now{
-		Title:     s.Track.Title,
-		Artist:    s.Track.Artist,
-		Album:     s.Track.Album,
-		Format:    s.Format,
-		Kbps:      s.Kbps,
-		Rate:      s.Rate,
-		Elapsed:   s.Elapsed,
-		Duration:  s.Duration,
-		Playing:   s.Playing,
-		Queued:    s.Queued,
-		CoverPath: s.Track.Path,
-	}
-	c.write(c.r.Render(n, m), m)
+	c.write(c.r.Render(now, mode), mode)
 }
 
 // write saves the card as the overlay's format: "ATN2", width, height and mode

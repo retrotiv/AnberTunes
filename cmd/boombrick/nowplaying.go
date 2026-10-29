@@ -17,10 +17,9 @@ import (
 // menu in NextUI's minarch) can show the track and whether it is playing. The
 // file is written whole and renamed over the old one, so a reader never catches
 // it half-written. It is removed when the player stops.
-func publishNowPlaying(ctx context.Context, p *player.Player, path, cardPath string) {
+func publishNowPlaying(ctx context.Context, p *player.Player, nav *overlayNav, card *overlayCard, path string) {
 	t := time.NewTicker(time.Second)
 	defer t.Stop()
-	card := newOverlayCard(cardPath) // the AnberTunes-styled card for the heavy-emulator overlay
 	write := func() {
 		s := p.State()
 		play := 0
@@ -38,14 +37,15 @@ func publishNowPlaying(ctx context.Context, p *player.Player, path, cardPath str
 		if err := os.WriteFile(tmp, []byte(body), 0o644); err == nil {
 			os.Rename(tmp, path)
 		}
-		card.update(s)
+		// the AnberTunes-styled card for the heavy-emulator overlay
+		card.render(nav.Frame())
 	}
 	write()
 	for {
 		select {
 		case <-ctx.Done():
 			os.Remove(path)
-			os.Remove(cardPath)
+			os.Remove(card.path)
 			return
 		case <-t.C:
 			write()
@@ -58,7 +58,7 @@ func publishNowPlaying(ctx context.Context, p *player.Player, path, cardPath str
 // read-write so it never blocks on open and never sees end-of-file when a
 // writer closes, so one reader serves every press. If the FIFO can't be made,
 // the menu just won't control the music; the button hotkeys still work.
-func watchCommands(ctx context.Context, c control, path string) {
+func watchCommands(ctx context.Context, nav *overlayNav, path string) {
 	os.Remove(path)
 	if err := syscall.Mkfifo(path, 0o666); err != nil {
 		return
@@ -75,17 +75,13 @@ func watchCommands(ctx context.Context, c control, path string) {
 	}()
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
-		switch strings.TrimSpace(sc.Text()) {
-		case "toggle":
-			c.Toggle()
-		case "next":
-			c.Next()
-		case "prev":
-			c.Prev()
+		switch line := strings.TrimSpace(sc.Text()); line {
 		case "view=reduced":
 			overlayViewMode.Store(0)
 		case "view=expanded":
 			overlayViewMode.Store(1)
+		default:
+			nav.Handle(line) // toggle/next/prev and the player's buttons
 		}
 	}
 }
