@@ -30,7 +30,7 @@ func frameSig(now overlaycard.Now, bm overlaycard.BrowseModel, browse bool, mode
 	if browse {
 		return fmt.Sprintf("b|%d|%d|%s|%d", bm.Tab, bm.Selected, bm.Heading, len(bm.Rows))
 	}
-	return fmt.Sprintf("n|%d|%s|%t|%d", mode, now.Title, now.Playing, int(now.Elapsed/time.Second))
+	return fmt.Sprintf("n|%d|%s|%t|%d|%d|%t|%d", mode, now.Title, now.Playing, int(now.Elapsed/time.Second), now.Focus, now.Shuffle, now.Repeat)
 }
 
 // overlayNav drives the in-game player: the library, which view shows and the
@@ -42,6 +42,7 @@ type overlayNav struct {
 	browsing bool
 	tab      int    // 0 Albums, 1 Artists, 2 Songs, 3 Genres
 	sel      [4]int // selection per tab
+	npFocus  int    // focused now-playing control: 0 shuffle..2 play..4 repeat
 
 	// A drilled-in album, artist or genre: its songs, ready to play.
 	inDrill     bool
@@ -58,24 +59,30 @@ const browseTabs = 4
 var tabNames = []string{"Álbuns", "Artistas", "Músicas", "Gêneros"}
 
 func newOverlayNav(p *player.Player, ix *library.Index) *overlayNav {
-	return &overlayNav{p: p, ix: ix, covers: map[string]*image.NRGBA{}}
+	return &overlayNav{p: p, ix: ix, npFocus: 2, covers: map[string]*image.NRGBA{}}
 }
 
 // Handle turns one command from the overlay into a move or playback.
 func (n *overlayNav) Handle(cmd string) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	if !n.browsing {
+	if !n.browsing { // now-playing: focus moves across the 5 controls, A activates
 		switch cmd {
 		case "y":
 			if n.ix != nil {
 				n.browsing = true
 			}
-		case "a", "toggle":
+		case "left":
+			n.npFocus = clamp(n.npFocus-1, 0, 4)
+		case "right":
+			n.npFocus = clamp(n.npFocus+1, 0, 4)
+		case "a":
+			n.activateNP()
+		case "toggle": // from the reduced view / the minarch music menu
 			n.p.Toggle()
-		case "left", "prev":
+		case "prev":
 			n.p.Prev()
-		case "right", "next":
+		case "next":
 			n.p.Next()
 		}
 		return
@@ -155,6 +162,22 @@ func (n *overlayNav) enter(title string, tracks []player.Track, paths []string) 
 	n.inDrill, n.drillTitle, n.drillTracks, n.drillPaths, n.drillSel = true, title, tracks, paths, 0
 }
 
+// activateNP works the focused now-playing control.
+func (n *overlayNav) activateNP() {
+	switch n.npFocus {
+	case 0:
+		n.p.SetShuffle(!n.p.State().Shuffle)
+	case 1:
+		n.p.Prev()
+	case 2:
+		n.p.Toggle()
+	case 3:
+		n.p.Next()
+	case 4:
+		n.p.CycleRepeat()
+	}
+}
+
 // Frame builds what the card draws now: the browser when browsing in the
 // expanded view, otherwise now-playing.
 func (n *overlayNav) Frame() (overlaycard.Now, overlaycard.BrowseModel, bool, overlaycard.Mode) {
@@ -170,6 +193,7 @@ func (n *overlayNav) Frame() (overlaycard.Now, overlaycard.BrowseModel, bool, ov
 		Format: s.Format, Kbps: s.Kbps, Rate: s.Rate,
 		Elapsed: s.Elapsed, Duration: s.Duration, Playing: s.Playing, Queued: s.Queued,
 		CoverPath: s.Track.Path,
+		Focus:     n.npFocus, Shuffle: s.Shuffle, Repeat: int(s.Repeat),
 	}
 	if !n.browsing || mode != overlaycard.Expanded || n.ix == nil {
 		return now, overlaycard.BrowseModel{}, false, mode

@@ -20,13 +20,17 @@ import (
 	"github.com/ujjwal313/boombrick/internal/ui/text"
 )
 
-// Now is what the player needs to draw: the current track and its progress.
+// Now is what the player needs to draw: the current track, its progress, and
+// which transport control is focused.
 type Now struct {
 	Title, Artist, Album, Format string
 	Kbps, Rate                   int
 	Elapsed, Duration            time.Duration
 	Playing, Queued              bool
 	CoverPath                    string // audio file; the cover is read from it or its folder
+	Focus                        int    // focused control: 0 shuffle, 1 prev, 2 play, 3 next, 4 repeat
+	Shuffle                      bool
+	Repeat                       int // 0 off, 1 all, 2 one
 }
 
 // Mode is the view: a compact bar or the full player.
@@ -246,6 +250,13 @@ func (r *Renderer) drawControls(dst *image.NRGBA, n Now, x, y, w int, ac theme.A
 	cy := y + expCtlRow/2
 	for i := range controlIcons {
 		cx := x + w/2 + controlOffset[i]
+		if i == n.Focus { // a focus ring around the selected control
+			fr := 34
+			if i == 2 {
+				fr = 58
+			}
+			drawRing(dst, cx, cy, fr, 3, ac.Color)
+		}
 		switch i {
 		case 2: // play / pause, with the accent ring
 			drawRing(dst, cx, cy, expCtlRow/2-2, 2, ac.Color)
@@ -256,8 +267,16 @@ func (r *Renderer) drawControls(dst *image.NRGBA, n Now, x, y, w int, ac theme.A
 			r.drawIcon(dst, name, 44, 2, true, cx-22, cy-22, theme.Paper)
 		case 1, 3: // prev, next
 			r.drawIcon(dst, controlIcons[i], 44, 2, true, cx-22, cy-22, theme.Paper)
-		default: // shuffle, repeat (inactive here)
-			r.drawIcon(dst, controlIcons[i], 34, 2, false, cx-17, cy-17, theme.Ink3)
+		default: // shuffle, repeat — amber when on
+			on := (i == 0 && n.Shuffle) || (i == 4 && n.Repeat != 0)
+			col := theme.Ink3
+			if on {
+				col = ac.Color
+			}
+			r.drawIcon(dst, controlIcons[i], 34, 2, false, cx-17, cy-17, col)
+			if i == 4 && n.Repeat == 2 { // repeat-one marker
+				r.drawText(dst, text.Style{Face: text.FigtreeSemiBold, Size: 15}, "1", cx+12, cy-26, col, 40)
+			}
 		}
 	}
 }

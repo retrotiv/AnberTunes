@@ -36,6 +36,9 @@ func main() {
 		Duration: 244 * time.Second,
 		Playing:  true,
 		Queued:   true,
+		Focus:    2, // play focused
+		Shuffle:  true,
+		Repeat:   1, // repeat all
 	}
 	save(out+"/overlay-expanded.png", r.Render(n, overlaycard.Expanded))
 	save(out+"/overlay-reduced.png", r.Render(n, overlaycard.Reduced))
