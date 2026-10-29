@@ -360,7 +360,17 @@ func (e *Engine) loop() {
 				e.mu.Unlock()
 				continue
 			}
+			idle := e.cur == nil
 			e.quiet = true
+			if idle {
+				// Nothing is playing (not just paused): release the sound device
+				// so the amplifier can power down, instead of hissing and drawing
+				// current. The next write reopens it. Paused keeps it open so a
+				// resume is instant.
+				e.mu.Unlock()
+				e.out.Close()
+				e.mu.Lock()
+			}
 			e.wake.Wait()
 			e.mu.Unlock()
 			continue
