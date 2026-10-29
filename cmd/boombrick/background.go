@@ -95,8 +95,9 @@ func runBackground() error {
 	defer stop()
 	nav := newOverlayNav(p, loadOverlayLibrary(db.DB)) // the in-game player: now-playing and the library browser
 	card := newOverlayCard(prof.NowPlayingCard())
-	go watchHotkeys(ctx, p)                             // L1+R1 + A/Y/B controls the music while a game is running
-	go watchCommands(ctx, nav, prof.CommandPipe())      // the overlay's buttons come in here
+	// No blind hotkeys: everything is driven from the on-screen player now, so
+	// the old L1+R1+A/Y/B (which clashed with the expand combo) are gone.
+	go watchCommands(ctx, nav, prof.CommandPipe()) // the overlay's buttons come in here
 	go publishNowPlaying(ctx, p, nav, card, prof.NowPlaying())
 	saver := resume.NewSaver(db.DB)
 	err = background.Run(ctx, background.Options{

@@ -18,7 +18,9 @@ import (
 // file is written whole and renamed over the old one, so a reader never catches
 // it half-written. It is removed when the player stops.
 func publishNowPlaying(ctx context.Context, p *player.Player, nav *overlayNav, card *overlayCard, path string) {
-	t := time.NewTicker(time.Second)
+	// A short tick keeps the overlay snappy; the frame signature means an
+	// unchanged view costs only the check, not a redraw.
+	t := time.NewTicker(250 * time.Millisecond)
 	defer t.Stop()
 	lastSig := ""
 	write := func() {
