@@ -126,32 +126,76 @@ func (c *overlayCard) render(s player.State) *image.NRGBA {
 		fillRoundRect(img, image.Rect(textX, py0, textX+fw, py1), 2, theme.Gold)
 	}
 
-	// Button hints: A plays or pauses, Y is next, B is previous.
-	hy := cardPad + 90
-	x := textX
-	playLabel := "Tocar"
-	if s.Playing {
-		playLabel = "Pausar"
+	// Transport buttons, like a real player: previous, play/pause, next, each
+	// tagged with the gamepad button that works it (B, A, Y).
+	const d, gap = 34, 26
+	rowW := 3*d + 2*gap
+	bx := textX + (textW-rowW)/2
+	if bx < textX {
+		bx = textX
 	}
-	x = c.drawHint(img, x, hy, "A", playLabel)
-	x = c.drawHint(img, x+18, hy, "Y", "Próxima")
-	c.drawHint(img, x+18, hy, "B", "Anterior")
+	by := cardPad + 80
+	c.drawBtn(img, bx, by, d, "prev", "B", false)
+	c.drawBtn(img, bx+d+gap, by, d, "play", "A", s.Playing)
+	c.drawBtn(img, bx+2*(d+gap), by, d, "next", "Y", false)
 
 	return img
 }
 
-// drawHint draws a gold button badge with the letter, then its label, and
-// returns the x just past the label.
-func (c *overlayCard) drawHint(dst *image.NRGBA, x, y int, letter, label string) int {
-	const d = 24 // badge diameter
-	fillRoundRect(dst, image.Rect(x, y, x+d, y+d), d/2, theme.Gold)
-	ls := text.Style{Face: text.FigtreeSemiBold, Size: 16}
+// drawBtn draws a transport button: a round key with a play/pause/next/prev
+// icon, and the gamepad letter under it. The play key is filled amber (the
+// primary action); the others are raised tiles with an amber icon.
+func (c *overlayCard) drawBtn(dst *image.NRGBA, x, y, d int, kind, letter string, playing bool) {
+	cx, cy := x+d/2, y+d/2
+	icon := theme.Gold
+	if kind == "play" {
+		fillRoundRect(dst, image.Rect(x, y, x+d, y+d), d/2, theme.Gold)
+		icon = theme.Ground
+	} else {
+		fillRoundRect(dst, image.Rect(x, y, x+d, y+d), d/2, theme.LiftedRow)
+	}
+	t := d / 6
+	bw := d/12 + 1
+	switch kind {
+	case "play":
+		if playing { // two bars
+			fillRoundRect(dst, image.Rect(cx-t, cy-t, cx-t+bw, cy+t), 1, icon)
+			fillRoundRect(dst, image.Rect(cx+t-bw, cy-t, cx+t, cy+t), 1, icon)
+		} else { // right triangle
+			fillTri(dst, cx-t+1, cy-t, cx-t+1, cy+t, cx+t, cy, icon)
+		}
+	case "prev":
+		fillRoundRect(dst, image.Rect(cx-t-bw, cy-t, cx-t, cy+t), 1, icon)
+		fillTri(dst, cx+t, cy-t, cx+t, cy+t, cx-t+1, cy, icon)
+	case "next":
+		fillTri(dst, cx-t, cy-t, cx-t, cy+t, cx+t-1, cy, icon)
+		fillRoundRect(dst, image.Rect(cx+t, cy-t, cx+t+bw, cy+t), 1, icon)
+	}
+	ls := text.Style{Face: text.Figtree, Size: 13}
 	lw := c.textWidth(ls, letter)
-	c.drawText(dst, ls, letter, x+(d-lw)/2, y+3, theme.Ground, d)
-	labelX := x + d + 7
-	st := text.Style{Face: text.Figtree, Size: 16}
-	c.drawText(dst, st, label, labelX, y+4, theme.Ink2, cardW)
-	return labelX + c.textWidth(st, label)
+	c.drawText(dst, ls, letter, cx-lw/2, y+d+2, theme.Ink4, cardW)
+}
+
+// fillTri fills the triangle (x0,y0)(x1,y1)(x2,y2) with col.
+func fillTri(dst *image.NRGBA, x0, y0, x1, y1, x2, y2 int, col color.NRGBA) {
+	minY, maxY := min(y0, y1, y2), max(y0, y1, y2)
+	minX, maxX := min(x0, x1, x2), max(x0, x1, x2)
+	area := (x1-x0)*(y2-y0) - (x2-x0)*(y1-y0)
+	if area == 0 {
+		return
+	}
+	for y := minY; y <= maxY; y++ {
+		for x := minX; x <= maxX; x++ {
+			w0 := (x1-x)*(y2-y) - (x2-x)*(y1-y)
+			w1 := (x2-x)*(y0-y) - (x0-x)*(y2-y)
+			w2 := (x0-x)*(y1-y) - (x1-x)*(y0-y)
+			if (w0 >= 0 && w1 >= 0 && w2 >= 0) || (w0 <= 0 && w1 <= 0 && w2 <= 0) {
+				if x >= 0 && y >= 0 && x < dst.Rect.Dx() && y < dst.Rect.Dy() {
+					overPixel(dst, x, y, col)
+				}
+			}
+		}
+	}
 }
 
 func (c *overlayCard) textWidth(st text.Style, s string) int { return c.eng.Shape(s, st).Width }
