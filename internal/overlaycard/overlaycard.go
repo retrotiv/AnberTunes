@@ -217,6 +217,9 @@ func (r *Renderer) expanded(n Now) *image.NRGBA {
 	y += expKnob + 8 + timeH + expGroup
 
 	r.drawControls(img, n, x, y, w, ac)
+
+	// Hint bar: how to work the player, including the way to the library.
+	r.drawHints(img, []hint{{"A", "Tocar/Pausar"}, {"Y", "Biblioteca"}, {"B", "Fechar"}, {"L1/R1", "Faixa"}})
 	return img
 }
 
