@@ -175,6 +175,9 @@ var (
 var controlOffset = [5]int{-170, -100, 0, 100, 170}
 var controlIcons = [5]string{"shuffle", "prev", "play", "next", "repeat"}
 
+// goldTint is the amber behind the selected browse row (brand gold at ~16%).
+var goldTint = color.NRGBA{R: theme.Gold.R, G: theme.Gold.G, B: theme.Gold.B, A: 42}
+
 func (r *Renderer) expanded(n Now) *image.NRGBA {
 	img := image.NewNRGBA(image.Rect(0, 0, expW, expH))
 	cover := r.cover(n.CoverPath, expArt)
@@ -266,6 +269,107 @@ func formatLine(n Now) string {
 		return fmt.Sprintf("%g kHz", float64(n.Rate)/1000)
 	default:
 		return fmt.Sprintf("%s · %g kHz", n.Format, float64(n.Rate)/1000)
+	}
+}
+
+// ---- the browse view: pick what to play from the library --------------------
+
+// BrowseRow is one line: a cover, a title and a subtitle (the artist, or a
+// track count).
+type BrowseRow struct {
+	Title, Subtitle string
+	Cover           image.Image
+}
+
+// BrowseModel is the library list to draw: a heading, the filter tabs, and the
+// rows with one selected.
+type BrowseModel struct {
+	Heading  string
+	Tabs     []string
+	Tab      int
+	Rows     []BrowseRow
+	Selected int
+}
+
+const (
+	browseTop  = 150
+	browseRowH = 78
+	browseRows = 5
+	browseThumb = 58
+)
+
+// RenderBrowse draws the library browser: a heading, tabs, and a scrolling list
+// with the selected row lifted in amber, over the dark ground.
+func (r *Renderer) RenderBrowse(m BrowseModel) *image.NRGBA {
+	img := image.NewNRGBA(image.Rect(0, 0, expW, expH))
+	fillRoundRect(img, img.Bounds(), 0, theme.Ground)
+
+	// Heading.
+	r.drawText(img, text.Style{Face: text.OutfitSemiBold, Size: 34}, orDash(m.Heading), expSide, 36, theme.Paper, expW-2*expSide)
+
+	// Tabs as pills.
+	tx := expSide
+	for i, name := range m.Tabs {
+		ts := text.Style{Face: text.FigtreeSemiBold, Size: 20}
+		tw := r.textW(ts, name)
+		pw := tw + 32
+		on := i == m.Tab
+		bg := theme.Raised
+		fg := theme.Ink3
+		if on {
+			bg, fg = theme.Gold, theme.Ground
+		}
+		fillRoundRect(img, image.Rect(tx, 90, tx+pw, 90+40), 20, bg)
+		r.drawText(img, ts, name, tx+16, 98, fg, pw)
+		tx += pw + 12
+	}
+
+	// List, scrolled so the selected row is in view.
+	first := m.Selected - 2
+	if max := len(m.Rows) - browseRows; first > max {
+		first = max
+	}
+	if first < 0 {
+		first = 0
+	}
+	for vi := 0; vi < browseRows && first+vi < len(m.Rows); vi++ {
+		i := first + vi
+		row := m.Rows[i]
+		ry := browseTop + vi*browseRowH
+		if i == m.Selected {
+			fillRoundRect(img, image.Rect(expSide-10, ry-6, expW-expSide+10, ry+browseThumb+6), 14, goldTint)
+		}
+		if row.Cover != nil {
+			compositeImage(img, art.Square(row.Cover, browseThumb), image.Pt(expSide, ry), 8)
+		} else {
+			fillRoundRect(img, image.Rect(expSide, ry, expSide+browseThumb, ry+browseThumb), 8, theme.LiftedRow)
+			r.drawIcon(img, "music", 28, 0, true, expSide+browseThumb/2-14, ry+browseThumb/2-14, theme.Ink4)
+		}
+		tx := expSide + browseThumb + 18
+		tw := expW - expSide - tx
+		r.drawText(img, text.Style{Face: text.FigtreeSemiBold, Size: 25}, orDash(row.Title), tx, ry+4, theme.Paper, tw)
+		r.drawText(img, text.Style{Face: text.Figtree, Size: 18}, row.Subtitle, tx, ry+34, theme.Ink3, tw)
+	}
+
+	// Hint bar.
+	r.drawHints(img, []hint{{"A", "Tocar"}, {"B", "Voltar"}, {"L2/R2", "Abas"}})
+	return img
+}
+
+type hint struct{ key, label string }
+
+func (r *Renderer) drawHints(dst *image.NRGBA, hints []hint) {
+	y := expH - 44
+	x := expSide
+	for _, h := range hints {
+		ks := text.Style{Face: text.FigtreeSemiBold, Size: 16}
+		kw := r.textW(ks, h.key)
+		fillRoundRect(dst, image.Rect(x, y, x+kw+18, y+28), 14, theme.Raised)
+		r.drawText(dst, ks, h.key, x+9, y+5, theme.Ink2, kw+18)
+		x += kw + 18 + 8
+		ls := text.Style{Face: text.Figtree, Size: 17}
+		r.drawText(dst, ls, h.label, x, y+5, theme.Ink3, 300)
+		x += r.textW(ls, h.label) + 26
 	}
 }
 

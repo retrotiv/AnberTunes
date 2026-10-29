@@ -39,7 +39,29 @@ func main() {
 	}
 	save(out+"/overlay-expanded.png", r.Render(n, overlaycard.Expanded))
 	save(out+"/overlay-reduced.png", r.Render(n, overlaycard.Reduced))
-	fmt.Println("wrote overlay-expanded.png and overlay-reduced.png to", out)
+
+	rb, _ := overlaycard.New()
+	albums := []struct{ t, s string }{
+		{"Hurry Up, We're Dreaming", "M83"},
+		{"Random Access Memories", "Daft Punk"},
+		{"In Rainbows", "Radiohead"},
+		{"Discovery", "Daft Punk"},
+		{"Currents", "Tame Impala"},
+		{"AM", "Arctic Monkeys"},
+		{"Blonde", "Frank Ocean"},
+	}
+	rows := make([]overlaycard.BrowseRow, len(albums))
+	for i, a := range albums {
+		rows[i] = overlaycard.BrowseRow{Title: a.t, Subtitle: a.s, Cover: tintCover(160, i)}
+	}
+	save(out+"/overlay-browse.png", rb.RenderBrowse(overlaycard.BrowseModel{
+		Heading:  "Biblioteca",
+		Tabs:     []string{"Álbuns", "Artistas", "Músicas", "Gêneros"},
+		Tab:      0,
+		Rows:     rows,
+		Selected: 2,
+	}))
+	fmt.Println("wrote overlay-expanded.png, overlay-reduced.png and overlay-browse.png to", out)
 }
 
 func save(path string, img image.Image) {
@@ -62,6 +84,22 @@ func sampleCover(px int) *image.NRGBA {
 			rr := 40 + 90*math.Sin(fx*3)
 			gg := 70 + 120*fy
 			bb := 180 + 60*math.Cos(fy*3)
+			img.SetNRGBA(x, y, color.NRGBA{clamp8(rr), clamp8(gg), clamp8(bb), 255})
+		}
+	}
+	return img
+}
+
+// tintCover makes a small distinct cover per row for the browse preview.
+func tintCover(px, seed int) *image.NRGBA {
+	img := image.NewNRGBA(image.Rect(0, 0, px, px))
+	base := float64(seed*53%360) * math.Pi / 180
+	for y := 0; y < px; y++ {
+		for x := 0; x < px; x++ {
+			fy := float64(y) / float64(px)
+			rr := 120 + 90*math.Sin(base)
+			gg := 110 + 90*math.Sin(base+2) + 40*fy
+			bb := 150 + 90*math.Sin(base+4)
 			img.SetNRGBA(x, y, color.NRGBA{clamp8(rr), clamp8(gg), clamp8(bb), 255})
 		}
 	}
