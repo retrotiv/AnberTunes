@@ -17,9 +17,10 @@ import (
 // menu in NextUI's minarch) can show the track and whether it is playing. The
 // file is written whole and renamed over the old one, so a reader never catches
 // it half-written. It is removed when the player stops.
-func publishNowPlaying(ctx context.Context, p *player.Player, path string) {
+func publishNowPlaying(ctx context.Context, p *player.Player, path, cardPath string) {
 	t := time.NewTicker(time.Second)
 	defer t.Stop()
+	card := newOverlayCard(cardPath) // the AnberTunes-styled card for the heavy-emulator overlay
 	write := func() {
 		s := p.State()
 		play := 0
@@ -37,12 +38,14 @@ func publishNowPlaying(ctx context.Context, p *player.Player, path string) {
 		if err := os.WriteFile(tmp, []byte(body), 0o644); err == nil {
 			os.Rename(tmp, path)
 		}
+		card.update(s)
 	}
 	write()
 	for {
 		select {
 		case <-ctx.Done():
 			os.Remove(path)
+			os.Remove(cardPath)
 			return
 		case <-t.C:
 			write()
