@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/binary"
+	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -37,9 +38,16 @@ func runSummon() error {
 	defer stop()
 
 	// The in-game player's open combos (L1+R1+X and L1+R1+Y) also start the
-	// resident player, so the player opens with nothing playing.
+	// resident player, so the player opens with nothing playing. Two readers
+	// feed the same signal: the evdev reader catches the combo in the menu and
+	// on emulators that leave the pad alone (PSP), and the command-file reader
+	// catches it inside the heavy emulators (N64, Dreamcast) that grab the real
+	// pad for themselves and hand the game a virtual one this process never
+	// opened -- there the overlay is the one that sees the combo, and it writes
+	// the view to the shared command file, which is the dependable trigger.
 	press := make(chan struct{}, 1)
 	go watchOpenCombo(ctx, press)
+	go watchOverlayOpen(ctx, press, prof.CommandPipe())
 
 	var last time.Time
 	for {
@@ -113,6 +121,68 @@ func watchOpenCombo(ctx context.Context, press chan struct{}) {
 				}
 			}
 		}(f)
+	}
+}
+
+// watchOverlayOpen signals press when the in-game overlay asks to open the
+// player. The overlay (inside the emulator) detects the combo on whatever pad
+// the emulator exposes, including the virtual pad a heavy emulator creates,
+// and appends the view to the shared command file. This process can miss the
+// combo on evdev inside such an emulator -- the real pad is grabbed away and
+// the virtual one did not exist when this process opened its devices at boot
+// -- so the command file is the reliable trigger there. It only watches for an
+// open (a non-hidden view); the resident, once started, reads the same file
+// for the player's buttons. Reading starts at the end so a past session's
+// commands are skipped, and a shrink (the resident trims the file) is followed.
+func watchOverlayOpen(ctx context.Context, press chan struct{}, path string) {
+	var off int64
+	if fi, err := os.Stat(path); err == nil {
+		off = fi.Size() // skip whatever a past session left
+	}
+	var pending string
+	t := time.NewTicker(300 * time.Millisecond)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		f, err := os.Open(path)
+		if err != nil {
+			continue
+		}
+		fi, err := f.Stat()
+		if err != nil {
+			f.Close()
+			continue
+		}
+		size := fi.Size()
+		if size < off { // trimmed or replaced: start over
+			off, pending = 0, ""
+		}
+		if size > off {
+			if _, err := f.Seek(off, io.SeekStart); err == nil {
+				b, _ := io.ReadAll(f)
+				off = size
+				pending += string(b)
+				for {
+					i := strings.IndexByte(pending, '\n')
+					if i < 0 {
+						break
+					}
+					line := strings.TrimSpace(pending[:i])
+					pending = pending[i+1:]
+					if line == "view=reduced" || line == "view=expanded" {
+						select {
+						case press <- struct{}{}:
+						default:
+						}
+					}
+				}
+			}
+		}
+		f.Close()
 	}
 }
 

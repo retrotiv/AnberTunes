@@ -1,12 +1,12 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/ujjwal313/boombrick/internal/player"
@@ -68,37 +68,72 @@ func publishNowPlaying(ctx context.Context, p *player.Player, nav *overlayNav, c
 	}
 }
 
-// watchCommands lets the in-game music menu drive the background player: it
-// reads lines from a FIFO and runs toggle, next or prev. The FIFO is opened
-// read-write so it never blocks on open and never sees end-of-file when a
-// writer closes, so one reader serves every press. If the FIFO can't be made,
-// the menu just won't control the music; the button hotkeys still work.
+// watchCommands lets the in-game overlay drive the background player: the
+// overlay appends lines to a plain file (view= and the player's buttons) and
+// this polls it for new ones. It is a plain file, not a FIFO, because it lives
+// on the card's shared storage (the only place the sandboxed heavy emulators
+// and the player can both reach), and a FIFO can't be made there. Reading
+// starts at the end, so stale commands from a past session are skipped, and the
+// file is trimmed when it grows, so it can't fill the card.
 func watchCommands(ctx context.Context, nav *overlayNav, path string) {
-	os.Remove(path)
-	if err := syscall.Mkfifo(path, 0o666); err != nil {
-		return
+	os.MkdirAll(filepath.Dir(path), 0o755)
+	var off int64
+	if fi, err := os.Stat(path); err == nil {
+		off = fi.Size() // skip whatever a past session left
 	}
-	f, err := os.OpenFile(path, os.O_RDWR, 0)
-	if err != nil {
-		os.Remove(path)
-		return
-	}
-	go func() {
-		<-ctx.Done()
+	var pending string // a half-written last line, finished on the next read
+	t := time.NewTicker(100 * time.Millisecond)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		f, err := os.Open(path)
+		if err != nil {
+			continue
+		}
+		fi, err := f.Stat()
+		if err != nil {
+			f.Close()
+			continue
+		}
+		size := fi.Size()
+		if size < off { // trimmed or replaced: start over
+			off, pending = 0, ""
+		}
+		if size > off {
+			if _, err := f.Seek(off, io.SeekStart); err == nil {
+				b, _ := io.ReadAll(f)
+				off = size
+				pending += string(b)
+				for {
+					i := strings.IndexByte(pending, '\n')
+					if i < 0 {
+						break
+					}
+					line := strings.TrimSpace(pending[:i])
+					pending = pending[i+1:]
+					switch line {
+					case "":
+					case "view=hidden":
+						overlayViewMode.Store(0)
+					case "view=reduced":
+						overlayViewMode.Store(1)
+					case "view=expanded":
+						overlayViewMode.Store(2)
+					default:
+						nav.Handle(line) // the player's buttons
+					}
+				}
+			}
+		}
 		f.Close()
-		os.Remove(path)
-	}()
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		switch line := strings.TrimSpace(sc.Text()); line {
-		case "view=hidden":
-			overlayViewMode.Store(0)
-		case "view=reduced":
-			overlayViewMode.Store(1)
-		case "view=expanded":
-			overlayViewMode.Store(2)
-		default:
-			nav.Handle(line) // toggle/next/prev and the player's buttons
+		if off > 64<<10 && pending == "" { // keep it from filling the card
+			if os.Truncate(path, 0) == nil {
+				off = 0
+			}
 		}
 	}
 }

@@ -54,6 +54,12 @@ type Profile struct {
 	ReleaseAsset, ReleaseDir, Launcher string
 	tmp                                string // where the power-off files go: /tmp
 	run                                string // Knulli's /var/run
+	// share is where the in-game overlay and the background player meet: the
+	// card, the command file and the now-playing file. The heavy emulators run
+	// sandboxed with a private /tmp, so these go on shared storage (the logs
+	// folder, which the overlay already writes its log to from inside them)
+	// instead of /tmp, or the overlay never sees the card.
+	share string
 }
 
 // Detect works out the firmware from what its launcher passes. The launch
@@ -67,7 +73,7 @@ func Detect(dir string) Profile {
 		if dir == "" {
 			dir = "/userdata/roms/ports/boombrick"
 		}
-		return Profile{Firmware: Knulli, tmp: tmpDir(), run: envOr("BOOMBRICK_RUN", "/var/run"),
+		return Profile{Firmware: Knulli, tmp: tmpDir(), run: envOr("BOOMBRICK_RUN", "/var/run"), share: filepath.Join(dir, "logs"),
 			Paths: Paths{
 				Data:     filepath.Join(dir, "data"),
 				Logs:     filepath.Join(dir, "logs"),
@@ -80,7 +86,7 @@ func Detect(dir string) Profile {
 		if dir == "" {
 			dir = "/mnt/SDCARD/Apps/Boombrick"
 		}
-		return Profile{Firmware: CrossMix, tmp: tmpDir(),
+		return Profile{Firmware: CrossMix, tmp: tmpDir(), share: filepath.Join(dir, "logs"),
 			Paths: Paths{
 				Data:     filepath.Join(dir, "data"),
 				Logs:     filepath.Join(dir, "logs"),
@@ -90,17 +96,18 @@ func Detect(dir string) Profile {
 			ReleaseAsset: "Boombrick-CrossMix.zip", ReleaseDir: "Apps/Boombrick/", Launcher: "launch.sh"}
 	}
 	if ud := os.Getenv("USERDATA_PATH"); ud != "" {
-		return Profile{Firmware: NextUI, tmp: tmpDir(),
+		logs := envOr("LOGS_PATH", filepath.Join(ud, "logs"))
+		return Profile{Firmware: NextUI, tmp: tmpDir(), share: logs,
 			Paths: Paths{
 				Data:     filepath.Join(ud, "Boombrick"),
-				Logs:     envOr("LOGS_PATH", filepath.Join(ud, "logs")),
+				Logs:     logs,
 				Music:    filepath.Join(envOr("SDCARD_PATH", "/mnt/SDCARD"), "Music"),
 				OnDevice: true,
 			},
 			ReleaseAsset: "Boombrick.pak.zip", ReleaseDir: "Tools/tg5040/Boombrick.pak/", Launcher: "launch.sh"}
 	}
 	base := envOr("BOOMBRICK_DATA", filepath.Join("dist", "desktop", "data"))
-	return Profile{Firmware: Desktop, tmp: tmpDir(), Paths: Paths{Data: base, Logs: base, Music: filepath.Join(base, "Music")}}
+	return Profile{Firmware: Desktop, tmp: tmpDir(), share: tmpDir(), Paths: Paths{Data: base, Logs: base, Music: filepath.Join(base, "Music")}}
 }
 
 func envOr(key, def string) string {
@@ -119,15 +126,13 @@ func tmpDir() string { return envOr("BOOMBRICK_TMP", "/tmp") }
 func (p Profile) PlayerLock() string { return filepath.Join(p.tmp, "boombrick-player.lock") }
 
 // NowPlaying is where the background player publishes what it is playing, for
-// an outside menu (the in-game music menu) to read. CommandPipe is the FIFO the
-// same menu writes toggle/next/prev to. Both live in tmp, so they are per-boot.
-func (p Profile) NowPlaying() string  { return filepath.Join(p.tmp, "anbertunes-now") }
-func (p Profile) CommandPipe() string { return filepath.Join(p.tmp, "anbertunes-cmd") }
-
-// NowPlayingCard is where the background player draws the now-playing card (the
-// AnberTunes-styled image) for the in-game overlay to texture on the heavy
-// emulators.
-func (p Profile) NowPlayingCard() string { return filepath.Join(p.tmp, "anbertunes-card") }
+// an outside menu (the in-game music menu) to read. CommandPipe is the file the
+// overlay appends its commands to (view=, the player's buttons). NowPlayingCard
+// is the card image the overlay textures on screen. All three live in share, on
+// storage the sandboxed heavy emulators can also see, not /tmp.
+func (p Profile) NowPlaying() string  { return filepath.Join(p.share, "anbertunes-now") }
+func (p Profile) CommandPipe() string { return filepath.Join(p.share, "anbertunes-cmd") }
+func (p Profile) NowPlayingCard() string { return filepath.Join(p.share, "anbertunes-card") }
 
 // StayAwake is the file that keeps the device awake while it exists: on
 // CrossMix its keep-awake file, and on Knulli a pause file for its battery

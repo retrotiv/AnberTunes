@@ -14,7 +14,7 @@ func TestDetectNextUI(t *testing.T) {
 	t.Setenv("USERDATA_PATH", "/mnt/SDCARD/.userdata/tg5040")
 	t.Setenv("SDCARD_PATH", "/mnt/SDCARD")
 	t.Setenv("LOGS_PATH", "/mnt/SDCARD/.userdata/tg5040/logs")
-	want := Profile{Firmware: NextUI, tmp: "/tmp",
+	want := Profile{Firmware: NextUI, tmp: "/tmp", share: "/mnt/SDCARD/.userdata/tg5040/logs",
 		Paths: Paths{
 			Data:     "/mnt/SDCARD/.userdata/tg5040/Boombrick",
 			Logs:     "/mnt/SDCARD/.userdata/tg5040/logs",
@@ -34,7 +34,7 @@ func TestDetectCrossMix(t *testing.T) {
 	t.Setenv("BOOMBRICK_PLATFORM", "crossmix")
 	t.Setenv("USERDATA_PATH", "")
 	t.Setenv("SDCARD_PATH", "")
-	want := Profile{Firmware: CrossMix, tmp: "/tmp",
+	want := Profile{Firmware: CrossMix, tmp: "/tmp", share: "/mnt/SDCARD/Apps/Boombrick/logs",
 		Paths: Paths{
 			Data:     "/mnt/SDCARD/Apps/Boombrick/data",
 			Logs:     "/mnt/SDCARD/Apps/Boombrick/logs",
@@ -60,7 +60,7 @@ func TestDetectKnulli(t *testing.T) {
 	t.Setenv("BOOMBRICK_RUN", "")
 	t.Setenv("BOOMBRICK_PLATFORM", "knulli")
 	t.Setenv("USERDATA_PATH", "")
-	want := Profile{Firmware: Knulli, tmp: "/tmp", run: "/var/run",
+	want := Profile{Firmware: Knulli, tmp: "/tmp", run: "/var/run", share: "/userdata/roms/ports/boombrick/logs",
 		Paths: Paths{
 			Data:     "/userdata/roms/ports/boombrick/data",
 			Logs:     "/userdata/roms/ports/boombrick/logs",
@@ -146,7 +146,7 @@ func TestDetectDesktop(t *testing.T) {
 	t.Setenv("BOOMBRICK_PLATFORM", "")
 	t.Setenv("USERDATA_PATH", "")
 	t.Setenv("BOOMBRICK_DATA", "/tmp/bb")
-	want := Profile{Firmware: Desktop, tmp: "/tmp", Paths: Paths{Data: "/tmp/bb", Logs: "/tmp/bb", Music: "/tmp/bb/Music"}}
+	want := Profile{Firmware: Desktop, tmp: "/tmp", share: "/tmp", Paths: Paths{Data: "/tmp/bb", Logs: "/tmp/bb", Music: "/tmp/bb/Music"}}
 	if got := Detect("/home/me/boombrick/dist/desktop"); got != want {
 		t.Fatalf("Detect() = %+v, want %+v", got, want)
 	}

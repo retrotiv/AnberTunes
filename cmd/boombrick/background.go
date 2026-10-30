@@ -106,6 +106,13 @@ func runBackground() error {
 	// the old L1+R1+A/Y/B (which clashed with the expand combo) are gone.
 	go watchCommands(ctx, nav, prof.CommandPipe()) // the overlay's buttons come in here
 	go publishNowPlaying(ctx, p, nav, card, prof.NowPlaying())
+	// A resident opens idle and never "plays" on its own, so it would never send
+	// the readiness signal its launcher waits for, and the launcher would kill it
+	// after a few seconds. Say it is up now, as soon as it can serve the in-game
+	// player: the launcher keeps it, and real playback later is a no-op here.
+	if backgroundResident {
+		ready()
+	}
 	saver := resume.NewSaver(db.DB)
 	err = background.Run(ctx, background.Options{
 		Player:     p,
